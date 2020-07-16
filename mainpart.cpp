@@ -13,7 +13,7 @@ extern SDL_Window *win;
 extern GLuint program;
 
 struct {
-    vec3 pos = vec3(0.);
+    vec3 pos = vec3(0., 1.76, 0.);
 
     float theta = 0.;
     float phi   = 0.;
@@ -86,7 +86,7 @@ void mainpart(void) {
         calc_direction_vectors(player.theta, 0., &ff_nophi, &uu_nophi, &rr_nophi);
 
         // | movements
-        float factor = key[SDL_SCANCODE_LSHIFT] ? player.runfactor : 1.;
+        float factor = key[SDL_SCANCODE_SPACE] ? player.runfactor : 1.;
         if (key[SDL_SCANCODE_W]) player.pos += ff_nophi * vec3(dtime * player.fmspeed * factor);
         if (key[SDL_SCANCODE_S]) player.pos -= ff_nophi * vec3(dtime * player.bmspeed * factor);
         if (key[SDL_SCANCODE_D]) player.pos += rr_nophi * vec3(dtime * player.lmspeed * factor);
@@ -94,7 +94,7 @@ void mainpart(void) {
         
         float walkheigh = 0.;
         if (key[SDL_SCANCODE_W] || key[SDL_SCANCODE_S] || key[SDL_SCANCODE_A] || key[SDL_SCANCODE_D])
-            if (key[SDL_SCANCODE_LSHIFT]) walkheigh = 0.14 * sin(time * 16.);
+            if (key[SDL_SCANCODE_SPACE]) walkheigh = 0.14 * sin(time * 16.);
             else                          walkheigh = 0.07 * sin(time * 8.);
 
         // Set uniforms
