@@ -2,12 +2,13 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+using glm::vec2;
+using glm::vec3;
 
 #include <math.h>
-
-using namespace glm;
 
 extern SDL_Window *win;
 extern GLuint program;
@@ -72,6 +73,8 @@ void mainpart(void) {
             if (e.type == SDL_MOUSEMOTION) {
                 player.phi   -= e.motion.yrel * player.vrspeed;
                 player.theta += e.motion.xrel * player.hrspeed;
+
+                player.phi = min(float(M_PI/2.), max(float(-M_PI/3.), player.phi));
             }
         }
         if (quit) break;
@@ -94,7 +97,7 @@ void mainpart(void) {
         
         float walkheigh = 0.;
         if (key[SDL_SCANCODE_W] || key[SDL_SCANCODE_S] || key[SDL_SCANCODE_A] || key[SDL_SCANCODE_D])
-            if (key[SDL_SCANCODE_SPACE]) walkheigh = 0.14 * sin(time * 16.);
+            if (key[SDL_SCANCODE_SPACE]) walkheigh = 0.14 * sin(time * 14.);
             else                          walkheigh = 0.07 * sin(time * 8.);
 
         // Set uniforms
