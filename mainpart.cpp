@@ -22,6 +22,8 @@ extern GLuint program;
 #define STATE_NOTHING    0
 #define STATE_PULLED_BOW 1
 
+#define PH_G 9.81
+
 struct {
     vec3 pos = vec3(0., 1.76, 0.);
 
@@ -50,6 +52,21 @@ void calc_direction_vectors(const float theta, const float phi, vec3 *ff, vec3 *
     *uu = normalize(cross(*rr, *ff));
 }
 
+vec3 arrow[2 * 10];
+vec3 arrowSpeed[2 * 10];
+int arrows = 0;
+
+void arrow_phisics(vec3 *arrowb, vec3 *arrowe, vec3 *arrowSpeed, const float dtime) {
+    arrowSpeed->y -= PH_G * dtime / 2.;
+
+    if (arrowb->y <= 0.f || arrowe->y <= 0.f) *arrowSpeed *= vec3(0.);
+    arrowb->y = max(arrowb->y, 0.f);
+    arrowe->y = max(arrowe->y, 0.f);
+
+    *arrowb += *arrowSpeed * dtime;
+    *arrowe += *arrowSpeed * dtime;
+}
+
 void mainpart(void) {
     // Get uniform locations
     GLuint uTime       = glGetUniformLocation(program, "time");
@@ -58,8 +75,10 @@ void mainpart(void) {
     GLuint uFF         = glGetUniformLocation(program, "ff");
     GLuint uUU         = glGetUniformLocation(program, "uu");
     GLuint uRR         = glGetUniformLocation(program, "rr");
-    GLuint uState       = glGetUniformLocation(program, "state");
-    GLuint uStateb      = glGetUniformLocation(program, "stateb");
+    GLuint uState      = glGetUniformLocation(program, "state");
+    GLuint uStateb     = glGetUniformLocation(program, "stateb");
+    GLuint uArrows     = glGetUniformLocation(program, "arrows");
+    GLuint uArrow      = glGetUniformLocation(program, "arrow");
 
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
@@ -116,23 +135,25 @@ void mainpart(void) {
             }
         } else {
             if (player.state == STATE_PULLED_BOW) {
+                arrow[2*arrows]    = vec3(player.pos);
+                arrow[2*arrows+1]  = vec3(player.pos + 0.9f * ff);
+                arrowSpeed[arrows] = ff * vec3(50. * pow(max(0.9, min(time - player.stateb, 0.5f) / 0.5), 15));
+                ++arrows;
+
+                if (arrows > 5) {
+                    copy(arrow + 2*5, arrow + 2*10, arrow);
+                    copy(arrowSpeed + 5, arrowSpeed + 10, arrowSpeed);
+                    arrows -= 5;
+                }
+
                 player.state  = STATE_NOTHING;
                 player.stateb = time;
             }
         }
 
-        // if (key[SDL_SCANCODE_W] || key[SDL_SCANCODE_S] || key[SDL_SCANCODE_A] || key[SDL_SCANCODE_D]) {
-        //     if (key[SDL_SCANCODE_SPACE] && player.state != STATE_RUN) {
-        //         player.state  = STATE_RUN;
-        //         player.stateb = SDL_GetTicks();
-        //     } else if (player.state != STATE_WALK) {
-        //         player.state  = STATE_WALK;
-        //         player.stateb = SDL_GetTicks();
-        //     }
-        // } else {
-        //     player.state  = STATE_WALK;
-        //     player.stateb = SDL_GetTicks();
-        // }
+        for (int i = 0; i < arrows; ++i)
+            arrow_phisics(arrow + 2*i, arrow + 2*i + 1, arrowSpeed + i, dtime);
+
         float walkheigh = 0.;
         if (key[SDL_SCANCODE_W] || key[SDL_SCANCODE_S] || key[SDL_SCANCODE_A] || key[SDL_SCANCODE_D])
             if (key[SDL_SCANCODE_SPACE]) walkheigh = 0.14 * sin(time * 14.);
@@ -147,6 +168,8 @@ void mainpart(void) {
         glUniform3fv(uRR, 1, value_ptr(rr));
         glUniform1i(uState, player.state);
         glUniform1f(uStateb, player.stateb);
+        glUniform1i(uArrows, arrows);
+        glUniform3fv(uArrow, 2 * arrows, value_ptr(arrow[0]));
 
         glClear(GL_COLOR_BUFFER_BIT);
         glRectf(-1., -1., 1., 1.);

@@ -3,9 +3,9 @@
 #define inf 1000000.
 #define M_PI 3.1415926
 
-#define RAY_INTERACTION_TRASHOLD 0.001
-#define RAY_OUTLINE_TRASHOLD 0.//02
-#define MARCHING_ITERATIONS 100.
+#define RAY_INTERACTION_TRASHOLD 0.01
+#define RAY_OUTLINE_TRASHOLD 0.02
+#define MARCHING_ITERATIONS 50.
 #define ZFAR 30.
 
 uniform float time;
@@ -18,6 +18,9 @@ uniform vec3 rr;
 
 uniform int state;
 uniform float stateb;
+
+uniform int arrows;          // arrow array size
+uniform vec3 arrow[2 * 10]; // pair of coordinates of the begining and the ending of the arrow
 
 // enum state
 #define STATE_NOTHING    0
@@ -88,7 +91,7 @@ vec2 map(in vec3 p) {
     {
         float T, z;
         if (state == STATE_PULLED_BOW) {
-            T = min(time - stateb, 0.3) / 0.3;
+            T = min(time - stateb, 0.5) / 0.5;
             z = -0.15 - 0.74 * T;
         } else {
             T = min(time - stateb, 0.05) / 0.05;
@@ -127,6 +130,14 @@ vec2 map(in vec3 p) {
 
     // Arrows
     {
+        float d1 = inf;
+        for (int i = 0; i < 2 * arrows; i += 2) {
+            d1 = min(d1, sdLine(p, arrow[i], arrow[i + 1], 0.005));
+        }
+        if (d1 < d) {
+            d = d1;
+            c = 3.;
+        }
     }
 
     return vec2(d, c);
@@ -145,7 +156,7 @@ vec2 cast_ray(in vec3 ro, in vec3 rd) {
             t = inf;
             break;
         }
-        if (lasth < h.x && h.x < RAY_OUTLINE_TRASHOLD) {
+        if (lasth < h.x && h.x < RAY_OUTLINE_TRASHOLD * sqrt(t)) {
             h.y = 0.;
             break;
         }
