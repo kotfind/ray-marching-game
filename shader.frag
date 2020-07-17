@@ -1,11 +1,12 @@
 #version 400
 
 #define inf 1000000.
+#define M_PI 3.1415926
 
-#define RAY_INTERACTION_TRASHOLD 0.01
-#define RAY_OUTLINE_TRASHOLD 0.03
-#define MARCHING_ITERATIONS 50.
-#define ZFAR 50.
+#define RAY_INTERACTION_TRASHOLD 0.001
+#define RAY_OUTLINE_TRASHOLD 0.//02
+#define MARCHING_ITERATIONS 100.
+#define ZFAR 30.
 
 uniform float time;
 uniform ivec2 resolution;
@@ -14,6 +15,13 @@ uniform vec3 playerpos;
 uniform vec3 ff;
 uniform vec3 uu;
 uniform vec3 rr;
+
+uniform int state;
+uniform float stateb;
+
+// enum state
+#define STATE_NOTHING    0
+#define STATE_PULLED_BOW 1
 
 // perlin noise
 float N21(in vec2 p) { return fract(sin(p.x * 2383. + p.y * 4993.) * 6827.); }
@@ -28,9 +36,9 @@ float smoothnoise(vec2 uv) {
     lv = lv*lv*(3. - 2.*lv);
 
     return mix(mix(N21(id + e.xx),
-                   N21(id + e.yx), lv.x),
-               mix(N21(id + e.xy),
-                   N21(id + e.yy), lv.x), lv.y);
+                N21(id + e.yx), lv.x),
+            mix(N21(id + e.xy),
+                N21(id + e.yy), lv.x), lv.y);
 }
 
 float noise(in vec2 uv) {
@@ -43,21 +51,82 @@ float noise(in vec2 uv) {
     return c / 2.;
 }
 
+// SDFs (Signed Distance Functions)
+float sdSphere(in vec3 p, in vec3 c, in float r) { return distance(p, c) - r; }
+
+float sdLine(in vec3 p, in vec3 a, in vec3 b, in float r) {
+    vec3 ap = p - a;
+    vec3 ab = b - a;
+    float h = clamp(dot(ap, ab) / dot(ab, ab), 0., 1.);
+    return length(ap - ab*h) - r;
+}
+
 // returns vec2(dist, material number)
 vec2 map(in vec3 p) {
     float d = inf;
     float c = -1.;
 
-    float d1 = p.y;
-    if (d1 < d) {
-        d = d1;
-        c = 1.;
+    // Floor
+    {
+        float d1 = p.y;
+        if (d1 < d) {
+            d = d1;
+            c = 1.;
+        }
     }
 
-    d1 = length(p - vec3(0., 0., 10.)) - 2.;
-    if (d1 < d) {
-        d = d1;
-        c = 2.;
+    // Sphere
+    {
+        float d1 = sdSphere(p, vec3(0., 0., 10.), 2.);
+        if (d1 < d) {
+            d = d1;
+            c = 2.;
+        }
+    }
+
+    // Bow
+    {
+        float T, z;
+        if (state == STATE_PULLED_BOW) {
+            T = min(time - stateb, 0.3) / 0.3;
+            z = -0.15 - 0.74 * T;
+        } else {
+            T = min(time - stateb, 0.05) / 0.05;
+            z = -0.15 - 0.74 * (1.-T);
+        }
+
+        vec3 p2 = p;
+        p2 -= playerpos;
+        p2 = vec3(dot(rr, p2), dot(uu, p2), dot(ff, p2));
+        p2 -= vec3(0.05, -0.3, 0.7);
+        float a = -M_PI/4.;
+        p2.xy = mat2(cos(a), -sin(a), sin(a), cos(a)) * p2.xy;
+        p2.y = abs(p2.y);
+        float d1 =   sdLine(p2, vec3(0., 0., 0.02), vec3(0., 0.2, 0.), 0.01);
+        d1 = min(d1, sdLine(p2, vec3(0., 0.2, 0.), vec3(0., 0.5, -0.15), 0.01));
+        if (d1 < d) {
+            d = d1;
+            c = 3.;
+        }
+
+        // Bowstring
+        d1 =         sdLine(p2, vec3(0.,  0.5, -0.15), vec3(-0.02, 0., z), 0.0005);
+        d1 = min(d1, sdLine(p2, vec3(0., -0.5, -0.15), vec3(-0.02, 0., z), 0.0005));
+        if (d1 < d) {
+            d = d1;
+            c = 4.;
+        }
+
+        // Arrow
+        d1 = sdLine(p2, vec3(-0.02, 0., z), vec3(-0.02, 0., z + 0.9), 0.002);
+        if (d1 < d) {
+            d = d1;
+            c = 3.;
+        }
+    }
+
+    // Arrows
+    {
     }
 
     return vec2(d, c);
@@ -112,18 +181,25 @@ void main() {
         vec3 c = vec3(1.);
         // outline
         if (t.y < 0.5)      c = vec3(0.);
-        //grass
+        // grass
         else if (t.y < 1.5) c = vec3(0., 0.8, 0.) * (noise(p.xz / 10.) * 0.3 + 0.7);
-        // circle
+        // sphere
         else if (t.y < 2.5) c = vec3(1.);
+        // bow (wood)
+        else if (t.y < 3.5) c = vec3(0.651, 0.502, 0.392);
+        // bow (string)
+        else if (t.y < 4.5) c = vec3(0.);
 
         vec3 sun_dir = normalize(vec3(5., 10., -5.));
-        float sun_dif = clamp(dot(sun_dir, norm),                     0., 1.);
+        float sun_dif = clamp(dot(sun_dir, norm),                      0.,  1.);
         float sun_sha = clamp(step(inf - 10., cast_ray(p, sun_dir).x), 0.4, 1.);
         col = c * clamp(sun_dif * sun_sha, 0.2, 0.9);
     }
 
     col = pow(col, vec3(0.4545));
+
+    //if (abs(uv.x) > 0.5 && abs(uv.x) < 0.505) col = vec3(1., 0., 0.);
+    //if (abs(uv.y) > 0.5 && abs(uv.y) < 0.505) col = vec3(1., 0., 0.);
 
     fragColor = vec4(col, 1.);
 }
